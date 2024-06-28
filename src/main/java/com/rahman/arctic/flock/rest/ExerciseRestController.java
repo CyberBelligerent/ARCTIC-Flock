@@ -21,6 +21,7 @@ import com.rahman.arctic.iceberg.objects.RangeDTO;
 import com.rahman.arctic.iceberg.objects.RangeExercise;
 import com.rahman.arctic.iceberg.objects.RangeType;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
+import com.rahman.arctic.iceberg.services.IcebergCreator;
 
 @RestController
 @RequestMapping("/range-api/v1")
@@ -30,6 +31,26 @@ public class ExerciseRestController {
 	private ExerciseRepo exRepo;
 	
 	// TODO: Build
+	@PostMapping("/exercise/{name}/build")
+	ResponseEntity<?> buildExercise(@PathVariable(value = "name", required = true) String name) {
+		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
+		
+		IcebergCreator ic = new IcebergCreator();
+		
+		range.getNetworks().forEach(net -> {
+			ic.createNetwork(net);
+		});
+		
+		range.getRouters().forEach(rout -> {
+			ic.createRouter(rout);
+		});
+		
+		range.getHosts().forEach(host -> {
+			ic.createHost(host);
+		});
+		
+		return new ResponseEntity<>(null, HttpStatus.OK);
+	}
 	
 	@GetMapping("/exercise")
 	ResponseEntity<List<RangeExercise>> getAllExercises() {
