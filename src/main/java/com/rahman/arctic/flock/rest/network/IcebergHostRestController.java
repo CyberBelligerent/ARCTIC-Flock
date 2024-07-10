@@ -45,8 +45,10 @@ public class IcebergHostRestController {
 		ArcticHost ah = new ArcticHost();
 		ah.setName(dto.getName());
 		ah.setMapId(dto.getMapId());
+		ah.setFlavorName(dto.getFlavorName());
 		ah.setFlavorId(dto.getFlavorId());
 		ah.setImageId(dto.getImageId());
+		ah.setImageName(dto.getImageName());
 		ah.setSize(dto.getSize());
 		ah.setNetworks(dto.getNetworks());
 		ah.setVolumes(dto.getVolumes());
