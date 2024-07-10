@@ -64,6 +64,7 @@ public class IcebergNetworkRestController {
 		if (range.getNetworks().stream().anyMatch(e -> e.getNetName() == dto.getName())) {
 			throw new ResourceAlreadyExistsException("Network with name: " + dto.getName() + " already exists!");
 		}
+
 		ArcticNetwork an = new ArcticNetwork();
 		an.setNetName(dto.getName());
 		an.setMapId(dto.getMapId());
