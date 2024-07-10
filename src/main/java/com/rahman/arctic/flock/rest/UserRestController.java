@@ -13,6 +13,8 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,6 +54,11 @@ public class UserRestController {
 		userRepo = ur;
 		roleRepo = rr;
 	}
+	
+	@GetMapping("/csrf-token")
+	public CsrfToken csrf(CsrfToken token) {
+        return token;
+    }
 	
 	@PostMapping(value = "/user", consumes = "application/json", produces = "application/json")
 	ResponseEntity<?> createUser(@RequestBody UserDTO dto) throws ResourceAlreadyExistsException {
@@ -111,6 +118,7 @@ public class UserRestController {
 	private void authenticate(String username, String password) throws Exception {
 		Objects.requireNonNull(username);
 		Objects.requireNonNull(password);
+		
 		try {
 			authManager.authenticate(new UsernamePasswordAuthenticationToken(username, password));
 		} catch (DisabledException e) {
