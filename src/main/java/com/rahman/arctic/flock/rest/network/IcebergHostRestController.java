@@ -49,9 +49,12 @@ public class IcebergHostRestController {
 		ah.setFlavorId(dto.getFlavorId());
 		ah.setImageId(dto.getImageId());
 		ah.setImageName(dto.getImageName());
-		ah.setSize(dto.getSize());
+		ah.setOsType(dto.getOsType());
 		ah.setNetworks(dto.getNetworks());
 		ah.setVolumes(dto.getVolumes());
+		ah.setDefaultUser(dto.getDefaultUser());
+		ah.setDefaultPassword(dto.getDefaultPassword());
+		ah.setWantedIPs(dto.getWantedIPs());
 		hostRepo.save(ah);
 		range.getHosts().add(ah);
 
