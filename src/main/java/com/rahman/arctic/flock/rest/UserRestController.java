@@ -27,8 +27,8 @@ import com.rahman.arctic.orca.objects.role.Role;
 import com.rahman.arctic.orca.objects.role.UserRole;
 import com.rahman.arctic.orca.repos.RoleRepo;
 import com.rahman.arctic.orca.repos.UserRepo;
-import com.rahman.arctic.orca.utils.IUserDetails;
-import com.rahman.arctic.orca.utils.IUserService;
+import com.rahman.arctic.orca.utils.ArcticUserDetails;
+import com.rahman.arctic.orca.utils.ArcticUserService;
 import com.rahman.arctic.orca.utils.JwtRequest;
 import com.rahman.arctic.orca.utils.JwtResponse;
 import com.rahman.arctic.orca.utils.JwtTokenUtil;
@@ -46,7 +46,7 @@ public class UserRestController {
 	@Autowired
 	private JwtTokenUtil tokenUtil;
 	
-	private IUserService userService;
+	private ArcticUserService userService;
 	private UserRepo userRepo;
 	private RoleRepo roleRepo;
 	
@@ -108,7 +108,7 @@ public class UserRestController {
 	ResponseEntity<?> authenticateUser(@RequestBody JwtRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
 		try {
 			authenticate(request.getUsername(), request.getPassword());
-			IUserDetails user = (IUserDetails)userService.loadUserByUsername(request.getUsername());
+			ArcticUserDetails user = (ArcticUserDetails)userService.loadUserByUsername(request.getUsername());
 			String token = tokenUtil.generateToken(user, httpRequest.getRemoteAddr());
 			
 			ResponseCookie cookie = ResponseCookie.from("token", token)
