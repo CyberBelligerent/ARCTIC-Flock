@@ -103,8 +103,8 @@ public class UserRestController {
 		return ResponseEntity.ok().build();
 	}
 	
-	@PostMapping("/authenticate")
 	ResponseEntity<?> authenticateUser(HttpServletRequest httpRequest, @RequestBody JwtRequest request) {
+	@PostMapping("/login")
 		try {
 			authenticate(request.getUsername(), request.getPassword());
 			IUserDetails user = (IUserDetails)userService.loadUserByUsername(request.getUsername());
