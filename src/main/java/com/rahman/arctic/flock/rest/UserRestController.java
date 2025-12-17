@@ -122,6 +122,7 @@ public class UserRestController {
 			response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 			return new ResponseEntity<>(new JwtResponse(token), HttpStatus.OK);
 		} catch (Exception e) {
+			e.printStackTrace();
 			return new ResponseEntity<>("Failed", HttpStatus.BAD_REQUEST);
 		}
 	}
