@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -43,14 +45,13 @@ public class UserRestController {
 	@Autowired
 	private DaoAuthenticationProvider authManager;
 	
-	@Autowired
 	private JwtTokenUtil tokenUtil;
-	
 	private ArcticUserService userService;
 	private UserRepo userRepo;
 	private RoleRepo roleRepo;
 	
-	public UserRestController(IUserService uServ, UserRepo ur, RoleRepo rr) {
+	public UserRestController(JwtTokenUtil tu, ArcticUserService uServ, UserRepo ur, RoleRepo rr) {
+		tokenUtil = tu;
 		userService = uServ;
 		userRepo = ur;
 		roleRepo = rr;
