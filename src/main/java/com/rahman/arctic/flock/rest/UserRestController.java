@@ -34,6 +34,7 @@ import com.rahman.arctic.orca.utils.JwtResponse;
 import com.rahman.arctic.orca.utils.JwtTokenUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/range-api/v1")
@@ -109,6 +110,15 @@ public class UserRestController {
 			authenticate(request.getUsername(), request.getPassword());
 			IUserDetails user = (IUserDetails)userService.loadUserByUsername(request.getUsername());
 			String token = tokenUtil.generateToken(user, httpRequest.getRemoteAddr());
+			
+			ResponseCookie cookie = ResponseCookie.from("token", token)
+					.httpOnly(false)
+					.secure(false)
+					.path("/")
+					.sameSite("Lax")
+					.maxAge(60 * 60 * 24)
+					.build();
+			response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 			return new ResponseEntity<>(new JwtResponse(token), HttpStatus.OK);
 		} catch (Exception e) {
 			return new ResponseEntity<>("Failed", HttpStatus.BAD_REQUEST);
