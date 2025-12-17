@@ -4,10 +4,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,20 +24,40 @@ import com.rahman.arctic.iceberg.objects.RangeExercise;
 import com.rahman.arctic.iceberg.objects.RangeType;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
 import com.rahman.arctic.iceberg.services.IcebergCreator;
+import com.rahman.arctic.orca.utils.ArcticUserDetails;
+import com.rahman.arctic.shard.configuration.persistence.ShardProfile;
+import com.rahman.arctic.shard.repos.ShardProfileRepo;
 
 @RestController
 @RequestMapping("/range-api/v1")
 public class ExerciseRestController {
 
+	private final ObjectProvider<IcebergCreator> icebergCreatorProvider;
+	private final ShardProfileRepo profileRepo;
+	
+	@Autowired
+    public ExerciseRestController(ObjectProvider<IcebergCreator> icebergCreatorProvider, ShardProfileRepo spr) {
+        this.icebergCreatorProvider = icebergCreatorProvider;
+        profileRepo = spr;
+    }
+	
 	@Autowired
 	private ExerciseRepo exRepo;
 	
 	// TODO: Build
-	@PostMapping("/exercise/{name}/build")
-	ResponseEntity<?> buildExercise(@PathVariable(value = "name", required = true) String name) {
+	@PostMapping("/exercise/{name}/build/{domain}")
+	ResponseEntity<?> buildExercise(@PathVariable(value = "name", required = true) String name, @PathVariable(value = "domain", required = true)String domain) {
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
+		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		ShardProfile sp = profileRepo.findByUsernameAndDomain(details.getUsername(), domain).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + domain));
 		
-		IcebergCreator ic = new IcebergCreator();
+		IcebergCreator ic = icebergCreatorProvider.getObject();
+		ic.setProfile(sp);
+		try {
+			ic.attemptCreation();
+		} catch (Exception e) {
+			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
+		}
 		
 		range.getNetworks().forEach(net -> {
 			ic.createNetwork(net);
@@ -49,7 +71,9 @@ public class ExerciseRestController {
 			ic.createHost(host);
 		});
 		
-		return new ResponseEntity<>(null, HttpStatus.OK);
+		ic.start();
+		
+		return new ResponseEntity<>("Started", HttpStatus.OK);
 	}
 	
 	@GetMapping("/exercise")
