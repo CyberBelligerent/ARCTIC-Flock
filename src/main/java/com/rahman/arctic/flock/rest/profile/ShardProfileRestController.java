@@ -86,29 +86,6 @@ public class ShardProfileRestController {
 		
 		return ResponseEntity.ok(shardProfiles);
 	}
-
-//	@GetMapping(path = "/settings/{domain}", produces="application/json")
-//	ResponseEntity<?> getProfileSettings(@PathVariable(name = "domain", required = true)String domain) {
-//		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-//		ShardProfile sp = profileRepo.findByUsernameAndDomain(details.getUsername(), domain).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + domain));
-//		
-//		ShardProfileSettingsReference spsr = configService.getAllConfigurationsForProfile(sp.getId());
-//		
-//		Map<String, String> values = new HashMap<>();
-//		List<ShardConfiguration> config = configService.getAllConfigurationOptions(domain);
-//		
-//		for(ShardConfiguration sc : config) {
-//			if(spsr.hasConfiguration(sc.getConfigKey())) {
-//				values.put(sc.getConfigKey(), spsr.getConfiguration(sc.getConfigKey()));
-//			}
-//		}
-//		
-//		Map<String, Object> profileSettingsForDomain = new HashMap<>();
-//		profileSettingsForDomain.put("domain", domain);
-//		profileSettingsForDomain.put("configuration", values);
-//		
-//		return ResponseEntity.ok(profileSettingsForDomain);
-//	}
 	
 	@PostMapping("/create/{domain}")
 	ResponseEntity<?> createDomainProfile(@PathVariable(name = "domain", required = true) String domain) {
