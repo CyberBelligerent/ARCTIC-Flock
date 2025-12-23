@@ -35,10 +35,10 @@ public class ShardProfileRestController {
 	private final ShardConfigurationService configService;
 	private final ShardManager shardManager;
 
-	public ShardProfileRestController(ShardProfileRepo srp, ShardConfigurationService spsr, ShardManager sm) {
+	public ShardProfileRestController(ShardProfileRepo srp, ShardConfigurationService scs, ShardManager sm) {
 		profileRepo = srp;
-		configService = spsr;
 //		profileSettingsRepo = spsr;
+		configService = scs;
 		shardManager = sm;
 	}
 	
