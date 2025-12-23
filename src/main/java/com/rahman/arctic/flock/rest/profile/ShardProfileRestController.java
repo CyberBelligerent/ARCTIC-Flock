@@ -47,6 +47,23 @@ public class ShardProfileRestController {
 		sp.setDomain(spr.getDomain());
 		sp.setProfileName(spr.getName());
 		sp.setUsername(details.getUsername());
+		ShardProfile saved = profileRepo.save(sp);
+		
+		for(String key : spr.getValues().keySet()) {
+			try {
+				configService.setConfiguration(saved.getId(), key, spr.getValues().get(key));
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			
+//			ShardProfileSettings sps = new ShardProfileSettings();
+//			sps.setProfileId(saved.getId());
+//			sps.setProfileKey(key);
+//			sps.setProfileValue(spr.getValues().get(key));
+//			sps.setProfileRequired(false);
+//			
+//			profileSettingsRepo.save(sps);
+		}
 		
 		return ResponseEntity.ok(profileRepo.save(sp));
 	}
