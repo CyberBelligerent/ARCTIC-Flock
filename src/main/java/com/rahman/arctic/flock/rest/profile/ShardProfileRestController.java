@@ -31,12 +31,14 @@ import com.rahman.arctic.shard.repos.ShardProfileRepo;
 public class ShardProfileRestController {
 
 	private final ShardProfileRepo profileRepo;
+//	private final ShardProfileSettingsRepo profileSettingsRepo;
 	private final ShardConfigurationService configService;
 	private final ShardManager shardManager;
 
 	public ShardProfileRestController(ShardProfileRepo srp, ShardConfigurationService spsr, ShardManager sm) {
 		profileRepo = srp;
 		configService = spsr;
+//		profileSettingsRepo = spsr;
 		shardManager = sm;
 	}
 	
@@ -83,6 +85,8 @@ public class ShardProfileRestController {
 			
 			ShardProfileSettingsReference spsr = configService.getAllConfigurationsForProfile(profile.getId());
 		
+			if(spsr == null) return ResponseEntity.notFound().build();
+			
 			Map<String, String> values = new HashMap<>();
 			List<ShardConfiguration> config = configService.getAllConfigurationOptions(profile.getDomain());
 			
