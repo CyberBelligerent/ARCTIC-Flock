@@ -42,6 +42,11 @@ public class ShardProfileRestController {
 		shardManager = sm;
 	}
 	
+	@GetMapping(path = "/providers/list", produces = "application/json")
+	ResponseEntity<?> getAllProviders() {
+		return ResponseEntity.ok(configService.getAllConfiguration());
+	}
+	
 	@PostMapping(path = "/providers", consumes = "application/json")
 	ResponseEntity<?> createProvider(@RequestBody ShardProfileReference spr) {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
