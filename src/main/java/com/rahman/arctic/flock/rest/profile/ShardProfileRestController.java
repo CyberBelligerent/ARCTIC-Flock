@@ -8,6 +8,7 @@ import java.util.Map;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
 import com.rahman.arctic.shard.ShardManager;
 import com.rahman.arctic.shard.configuration.ShardConfigurationService;
+import com.rahman.arctic.shard.configuration.ShardProfileNameReference;
 import com.rahman.arctic.shard.configuration.ShardProfileReference;
 import com.rahman.arctic.shard.configuration.ShardProfileSettingsReference;
 import com.rahman.arctic.shard.configuration.persistence.ShardConfiguration;
@@ -31,15 +33,28 @@ import com.rahman.arctic.shard.repos.ShardProfileRepo;
 public class ShardProfileRestController {
 
 	private final ShardProfileRepo profileRepo;
-//	private final ShardProfileSettingsRepo profileSettingsRepo;
 	private final ShardConfigurationService configService;
 	private final ShardManager shardManager;
 
 	public ShardProfileRestController(ShardProfileRepo srp, ShardConfigurationService scs, ShardManager sm) {
 		profileRepo = srp;
-//		profileSettingsRepo = spsr;
 		configService = scs;
 		shardManager = sm;
+	}
+	
+	@DeleteMapping(path = "/providers", consumes = "application/json")
+	ResponseEntity<?> deleteProvider(@RequestBody ShardProfileNameReference profileName) {
+		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		
+		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find profile for user"));
+		
+		try {
+			profileRepo.deleteById(sp.getId());
+			
+			return ResponseEntity.ok("Deleted profile");
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.notFound().build();
+		}
 	}
 	
 	@GetMapping(path = "/providers/list", produces = "application/json")
@@ -62,14 +77,6 @@ public class ShardProfileRestController {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			
-//			ShardProfileSettings sps = new ShardProfileSettings();
-//			sps.setProfileId(saved.getId());
-//			sps.setProfileKey(key);
-//			sps.setProfileValue(spr.getValues().get(key));
-//			sps.setProfileRequired(false);
-//			
-//			profileSettingsRepo.save(sps);
 		}
 		
 		return ResponseEntity.ok(profileRepo.save(sp));
