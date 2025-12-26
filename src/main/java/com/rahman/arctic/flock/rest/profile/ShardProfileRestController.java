@@ -22,6 +22,7 @@ import com.rahman.arctic.shard.configuration.ShardConfigurationService;
 import com.rahman.arctic.shard.configuration.ShardProfileNameReference;
 import com.rahman.arctic.shard.configuration.ShardProfileReference;
 import com.rahman.arctic.shard.configuration.ShardProfileSettingsReference;
+import com.rahman.arctic.shard.configuration.ShardProfileStatus;
 import com.rahman.arctic.shard.configuration.persistence.ShardConfiguration;
 import com.rahman.arctic.shard.configuration.persistence.ShardConfigurationType;
 import com.rahman.arctic.shard.configuration.persistence.ShardProfile;
@@ -156,7 +157,26 @@ public class ShardProfileRestController {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + profileName.getName()));
 		
-		return ResponseEntity.ok(shardManager.performConnectionTest(sp));
+		ShardProfileStatus status = shardManager.performConnectionTest(sp);
+		
+		switch(status) {
+		case ENABLED:
+			sp.setStatus("Enabled");
+			break;
+		case ERROR:
+			sp.setStatus("Error");
+			break;
+		case LOADED:
+			sp.setStatus("Loaded");
+			break;
+		case MISCONFIGURED:
+			sp.setStatus("Misconfigured");
+			break;
+		}
+		
+		profileRepo.save(sp);
+		
+		return ResponseEntity.ok(status.toString());
 	}
 
 }
