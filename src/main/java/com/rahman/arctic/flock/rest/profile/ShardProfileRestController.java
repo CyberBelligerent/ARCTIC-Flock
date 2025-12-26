@@ -68,7 +68,13 @@ public class ShardProfileRestController {
 		ShardProfile sp = new ShardProfile();
 		sp.setDomain(spr.getDomain());
 		sp.setProfileName(spr.getName());
+		sp.setStatus("Error");
 		sp.setUsername(details.getUsername());
+		
+		ShardProfile check = profileRepo.findByUsernameAndProfileName(details.getUsername(), spr.getName()).orElse(null);
+		
+		if(check != null) return ResponseEntity.badRequest().body("Profile Name Exists");
+		
 		ShardProfile saved = profileRepo.save(sp);
 		
 		for(String key : spr.getValues().keySet()) {
@@ -93,7 +99,7 @@ public class ShardProfileRestController {
 			ShardProfileReference spr = new ShardProfileReference();
 			spr.setName(profile.getProfileName());
 			spr.setDomain(profile.getDomain());
-			spr.setStatus("Error");
+			spr.setStatus(profile.getStatus());
 			
 			ShardProfileSettingsReference spsr = configService.getAllConfigurationsForProfile(profile.getId());
 		
