@@ -145,10 +145,10 @@ public class ShardProfileRestController {
 		}
 	}
 	
-	@PostMapping("/test-connection/{domain}")
-	ResponseEntity<?> testConnection(@PathVariable(value="domain", required = true)String domain) {
+	@PostMapping(path = "/test-connection", consumes = "application/json")
+	ResponseEntity<?> testConnection(@RequestBody ShardProfileNameReference profileName) {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-		ShardProfile sp = profileRepo.findByUsernameAndDomain(details.getUsername(), domain).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + domain));
+		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + profileName.getName()));
 		
 		return ResponseEntity.ok(shardManager.performConnectionTest(sp));
 	}
