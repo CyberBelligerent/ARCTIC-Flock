@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,8 @@ import com.rahman.arctic.shard.configuration.persistence.ShardConfigurationType;
 import com.rahman.arctic.shard.configuration.persistence.ShardProfile;
 import com.rahman.arctic.shard.objects.ShardConfigurationSettingDTO;
 import com.rahman.arctic.shard.repos.ShardProfileRepo;
+import com.rahman.arctic.shard.shards.ShardObjectType;
+import com.rahman.arctic.shard.shards.UIFieldReference;
 
 @RestController
 @RequestMapping("/range-api/v1/profile")
@@ -177,6 +180,18 @@ public class ShardProfileRestController {
 		profileRepo.save(sp);
 		
 		return ResponseEntity.ok(status.toString());
+	}
+	
+	@PostMapping(path = "/check-create-vm", consumes = "application/json", produces = "application/json")
+	CompletableFuture<ResponseEntity<List<UIFieldReference>>> checkVM(@RequestBody ShardProfileNameReference profileName) {
+		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + profileName.getName()));
+		
+		CompletableFuture<List<UIFieldReference>> references = shardManager.createOneOffSession(sp, ShardObjectType.HOST);
+		
+		return references.thenApply(ResponseEntity::ok).exceptionally(ex -> {
+			return ResponseEntity.internalServerError().body(new ArrayList<UIFieldReference>());
+		});
 	}
 
 }
