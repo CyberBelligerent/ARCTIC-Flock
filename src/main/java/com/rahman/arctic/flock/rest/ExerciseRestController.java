@@ -1,8 +1,6 @@
 package com.rahman.arctic.flock.rest;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.rahman.arctic.flock.exceptions.ResourceAlreadyExistsException;
 import com.rahman.arctic.iceberg.objects.RangeDTO;
 import com.rahman.arctic.iceberg.objects.RangeExercise;
-import com.rahman.arctic.iceberg.objects.RangeType;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
 import com.rahman.arctic.iceberg.services.IcebergCreator;
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
@@ -91,11 +88,6 @@ public class ExerciseRestController {
 	@DeleteMapping(value = "/exercise/{name}", produces = "application/json")
 	ResponseEntity<?> deleteExercise(@PathVariable String name) {
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		
-		// TODO: Figure out how to delete based on Provider
-//		osService.submitIcebergSingleton(client -> {
-//			client.identity().projects().delete(range.getProjectId());
-//		});
 		exRepo.delete(range);
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
@@ -104,32 +96,19 @@ public class ExerciseRestController {
 	ResponseEntity<RangeExercise> addExercise(@RequestBody RangeDTO dto) throws ResourceAlreadyExistsException {
 		RangeExercise test = exRepo.findByName(dto.getRangeName().replaceAll(" ", "_")).orElse(null);
 		if(test != null) throw new ResourceAlreadyExistsException("Range with name: " + dto.getRangeName() + " already exists!");
-		RangeType rt = RangeType.valueOf(dto.getRangeType().toUpperCase());
-		if(rt == null) new ResourceNotFoundException("Range Type Does Not Exist: " + dto.getRangeType());
+//		RangeType rt = RangeType.valueOf(dto.getRangeType().toUpperCase());
+//		if(rt == null) new ResourceNotFoundException("Range Type Does Not Exist: " + dto.getRangeType());
 		
 		RangeExercise range = new RangeExercise();
 		range.setName(dto.getRangeName().replaceAll(" ", "_"));
 		range.setDescription(dto.getRangeDescription());
-		range.setConcurrentRanges(dto.getConcurrentRanges());
-		range.setType(RangeType.valueOf(dto.getRangeType().toString().toUpperCase()));
-		Set<String> tags = new HashSet<String>();
-		if(dto.getTags().size() > 0) tags.addAll(dto.getTags());
-		range.setTags(tags);
+		range.setProviderName(dto.getProviderName());
+//		range.setType(RangeType.valueOf(dto.getRangeType().toString().toUpperCase()));
+//		Set<String> tags = new HashSet<String>();
+//		if(dto.getTags().size() > 0) tags.addAll(dto.getTags());
+//		range.setTags(tags);
 		
 		exRepo.save(range);
-		
-//		osService.<Project>submitIcebergSingleton(client -> {
-//			Project proj = client.identity().projects().create(Builders.project()
-//					.name(dto.getRangeName().replace(" ", "_"))
-//					.description(dto.getRangeDescription())
-//					.enabled(true)
-//					.build());
-//			
-//			client.identity().roles().grantProjectUserRole(proj.getId(), "e4dda4bbc13a41fcbb8ff0ad3ea826d4", "89da81da8dc149b6a331dbd17a8529a0");
-//			
-//			range.setProjectId(proj.getId());
-//			exRepo.save(range);
-//		});
 		
 		return new ResponseEntity<>(range, HttpStatus.CREATED);
 	}
