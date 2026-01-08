@@ -44,8 +44,8 @@ public class PolarBearRest {
 		// Create a reference object to the newly created AttackStep
 		AttackStepRef asr = new AttackStepRef(as.getId());
 		
-		// Save the attack step reference to the range
-		range.getAttackSteps().add(asr);
+//		// Save the attack step reference to the range
+//		range.getAttackSteps().add(asr);
 		
 		// Save the AttackStep to the database
 		AttackStep ass = asRepo.save(as);
@@ -59,9 +59,9 @@ public class PolarBearRest {
 		// Get the range
 		RangeExercise range = exRepo.findByName(exercise.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + exercise));
 		
-		// Ensure the AttackStep is in the range
-		if(!range.doesAttackStepsContainId(attackstep)) return new ResponseEntity<>("Range Does Not Contain AttackStep: " + attackstep, HttpStatus.NOT_FOUND);
-		
+//		// Ensure the AttackStep is in the range
+//		if(!range.doesAttackStepsContainId(attackstep)) return new ResponseEntity<>("Range Does Not Contain AttackStep: " + attackstep, HttpStatus.NOT_FOUND);
+//		
 		// Make sure the AttackStep even exists
 		AttackStep as = asRepo.findById(attackstep).orElseThrow(() -> new ResourceNotFoundException("AttackStep Not Found With ID: " + attackstep));
 		as.getBody().add(item);
@@ -78,9 +78,9 @@ public class PolarBearRest {
 		
 		// Obtain all of the AttackStepReferences and create a list of the actual attacksteps
 		List<AttackStep> attackSteps = new ArrayList<>();
-		range.getAttackSteps().forEach((e) -> {
-			attackSteps.add(asRepo.findById(e.getAttackStepId()).get());
-		});
+//		range.getAttackSteps().forEach((e) -> {
+//			attackSteps.add(asRepo.findById(e.getAttackStepId()).get());
+//		});
 		
 		// Return a JSON list of all of the attackSteps of a range
 		return new ResponseEntity<>(attackSteps, HttpStatus.OK);
