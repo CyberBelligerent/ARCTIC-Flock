@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
@@ -46,11 +47,11 @@ public class ShardProfileRestController {
 		shardManager = sm;
 	}
 	
-	@DeleteMapping(path = "/providers", consumes = "application/json")
-	ResponseEntity<?> deleteProvider(@RequestBody ShardProfileNameReference profileName) {
+	@DeleteMapping(path = "/providers/{profileName}", consumes = "application/json")
+	ResponseEntity<?> deleteProvider(@PathVariable(required = true) String profileName) {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		
-		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find profile for user"));
+		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName).orElseThrow(() -> new ResourceNotFoundException("Unable to find profile for user"));
 		
 		try {
 			profileRepo.deleteById(sp.getId());
@@ -184,9 +185,9 @@ public class ShardProfileRestController {
 	}
 	
 	@GetMapping(path = "/values/{type}")
-	CompletableFuture<ResponseEntity<List<UIFieldReference>>> checkHostValues(@RequestBody ShardProfileNameReference profileName, @PathVariable(name = "type", required = true) String type) {
+	CompletableFuture<ResponseEntity<List<UIFieldReference>>> checkHostValues(@PathVariable(name = "type", required = true) String type, @RequestParam(required = true) String profileName) {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + profileName.getName()));
+		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + profileName));
 		
 		CompletableFuture<List<UIFieldReference>> references = shardManager.createOneOffSession(sp, ShardObjectType.valueOf(type.toUpperCase()));
 		
