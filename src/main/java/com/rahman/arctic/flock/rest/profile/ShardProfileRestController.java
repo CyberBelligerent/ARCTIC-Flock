@@ -73,6 +73,7 @@ public class ShardProfileRestController {
 		sp.setDomain(spr.getDomain());
 		sp.setProfileName(spr.getName());
 		sp.setStatus("Error");
+		sp.setErrorMessage("Test Connection");
 		sp.setUsername(details.getUsername());
 		
 		ShardProfile check = profileRepo.findByUsernameAndProfileName(details.getUsername(), spr.getName()).orElse(null);
@@ -182,12 +183,12 @@ public class ShardProfileRestController {
 		return ResponseEntity.ok(status.toString());
 	}
 	
-	@PostMapping(path = "/check-create-vm", consumes = "application/json", produces = "application/json")
-	CompletableFuture<ResponseEntity<List<UIFieldReference>>> checkVM(@RequestBody ShardProfileNameReference profileName) {
+	@GetMapping(path = "/values/{type}")
+	CompletableFuture<ResponseEntity<List<UIFieldReference>>> checkHostValues(@RequestBody ShardProfileNameReference profileName, @PathVariable(name = "type", required = true) String type) {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), profileName.getName()).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + profileName.getName()));
 		
-		CompletableFuture<List<UIFieldReference>> references = shardManager.createOneOffSession(sp, ShardObjectType.HOST);
+		CompletableFuture<List<UIFieldReference>> references = shardManager.createOneOffSession(sp, ShardObjectType.valueOf(type.toUpperCase()));
 		
 		return references.thenApply(ResponseEntity::ok).exceptionally(ex -> {
 			return ResponseEntity.internalServerError().body(new ArrayList<UIFieldReference>());
