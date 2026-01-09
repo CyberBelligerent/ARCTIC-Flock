@@ -47,7 +47,7 @@ public class ShardProfileRestController {
 		shardManager = sm;
 	}
 	
-	@DeleteMapping(path = "/providers/{profileName}", consumes = "application/json")
+	@DeleteMapping(path = "/providers/{profileName}")
 	ResponseEntity<?> deleteProvider(@PathVariable(required = true) String profileName) {
 		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 		
