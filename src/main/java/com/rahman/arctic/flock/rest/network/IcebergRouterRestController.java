@@ -21,7 +21,7 @@ import com.rahman.arctic.iceberg.repos.ArcticRouterRepo;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
 
 @RestController
-@RequestMapping("/iceberg-api/v1")
+@RequestMapping("/range-api/v1")
 public class IcebergRouterRestController {
 
 	@Autowired
