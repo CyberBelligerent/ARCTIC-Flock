@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.rahman.arctic.flock.exceptions.ResourceAlreadyExistsException;
 import com.rahman.arctic.iceberg.objects.RangeDTO;
 import com.rahman.arctic.iceberg.objects.RangeExercise;
+import com.rahman.arctic.iceberg.objects.RangeGraphDTO;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
 import com.rahman.arctic.iceberg.services.IcebergCreator;
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
@@ -89,6 +90,24 @@ public class ExerciseRestController {
 	ResponseEntity<?> deleteExercise(@PathVariable String name) {
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
 		exRepo.delete(range);
+		return new ResponseEntity<>("", HttpStatus.OK);
+	}
+	
+	@GetMapping("/exercise/{name}/graph")
+	ResponseEntity<?> setGraph(@PathVariable(value = "name", required = true) String name) {
+		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
+		RangeGraphDTO dto = new RangeGraphDTO();
+		dto.setLinks(range.getGraphLinks());
+		dto.setNodes(range.getGraphNodes());
+		return new ResponseEntity<>(dto, HttpStatus.OK);
+	}
+	
+	@PostMapping(value = "/exercise/{name}/graph", consumes="application/json")
+	ResponseEntity<?> setGraph(@PathVariable(value = "name", required = true) String name, @RequestBody RangeGraphDTO dto) {
+		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
+		range.setGraphLinks(dto.getLinks());
+		range.setGraphNodes(dto.getNodes());
+		exRepo.save(range);
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
 	
