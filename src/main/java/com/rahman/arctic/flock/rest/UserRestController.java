@@ -14,23 +14,29 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.rahman.arctic.flock.exceptions.ResourceAlreadyExistsException;
 import com.rahman.arctic.orca.objects.RangeUser;
 import com.rahman.arctic.orca.objects.UserDTO;
+import com.rahman.arctic.orca.objects.role.ExerciseRole;
 import com.rahman.arctic.orca.objects.role.Role;
 import com.rahman.arctic.orca.objects.role.UserRole;
 import com.rahman.arctic.orca.repos.RoleRepo;
 import com.rahman.arctic.orca.repos.UserRepo;
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
 import com.rahman.arctic.orca.utils.ArcticUserService;
+import com.rahman.arctic.orca.utils.ExercisePermissionService;
 import com.rahman.arctic.orca.utils.JwtRequest;
 import com.rahman.arctic.orca.utils.JwtResponse;
 import com.rahman.arctic.orca.utils.JwtTokenUtil;
@@ -49,12 +55,14 @@ public class UserRestController {
 	private ArcticUserService userService;
 	private UserRepo userRepo;
 	private RoleRepo roleRepo;
-	
-	public UserRestController(JwtTokenUtil tu, ArcticUserService uServ, UserRepo ur, RoleRepo rr) {
+	private ExercisePermissionService permissionService;
+
+	public UserRestController(JwtTokenUtil tu, ArcticUserService uServ, UserRepo ur, RoleRepo rr, ExercisePermissionService eps) {
 		tokenUtil = tu;
 		userService = uServ;
 		userRepo = ur;
 		roleRepo = rr;
+		permissionService = eps;
 	}
 	
 	@GetMapping("/csrf-token")
@@ -64,6 +72,9 @@ public class UserRestController {
 	
 	@PostMapping(value = "/user", consumes = "application/json", produces = "application/json")
 	ResponseEntity<?> createUser(@RequestBody UserDTO dto) throws ResourceAlreadyExistsException {
+		ArcticUserDetails caller = currentUser();
+		if (caller == null || !permissionService.isGlobalAdmin(caller))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
 		RangeUser test = userRepo.findByUsernameIgnoreCase(dto.getUsername()).orElse(null);
 		if(test != null) throw new ResourceAlreadyExistsException("User with username: " + dto.getUsername() + " already exists!");
 		final RangeUser ru = new RangeUser();
@@ -130,7 +141,7 @@ public class UserRestController {
 	private void authenticate(String username, String password) throws Exception {
 		Objects.requireNonNull(username);
 		Objects.requireNonNull(password);
-		
+
 		try {
 			authManager.authenticate(new UsernamePasswordAuthenticationToken(username, password));
 		} catch (DisabledException e) {
@@ -139,5 +150,53 @@ public class UserRestController {
 			throw new Exception("Invalid_Credentials", e);
 		}
 	}
-	
+
+	@PostMapping("/user/{username}/exercise/{exerciseId}/permission")
+	ResponseEntity<?> grantExercisePermission(
+			@PathVariable String username,
+			@PathVariable String exerciseId,
+			@RequestParam String role) {
+		ArcticUserDetails caller = currentUser();
+		if (caller == null || !permissionService.isGlobalAdmin(caller))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
+
+		ExerciseRole exerciseRole;
+		try {
+			exerciseRole = ExerciseRole.valueOf(role.toUpperCase());
+		} catch (IllegalArgumentException e) {
+			return new ResponseEntity<>("Unknown role: " + role, HttpStatus.BAD_REQUEST);
+		}
+
+		if (!userRepo.existsByUsernameIgnoreCase(username))
+			return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+
+		permissionService.grant(username, exerciseId, exerciseRole);
+		return ResponseEntity.ok().build();
+	}
+
+	@DeleteMapping("/user/{username}/exercise/{exerciseId}/permission")
+	ResponseEntity<?> revokeExercisePermission(
+			@PathVariable String username,
+			@PathVariable String exerciseId,
+			@RequestParam String role) {
+		ArcticUserDetails caller = currentUser();
+		if (caller == null || !permissionService.isGlobalAdmin(caller))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
+
+		ExerciseRole exerciseRole;
+		try {
+			exerciseRole = ExerciseRole.valueOf(role.toUpperCase());
+		} catch (IllegalArgumentException e) {
+			return new ResponseEntity<>("Unknown role: " + role, HttpStatus.BAD_REQUEST);
+		}
+
+		permissionService.revoke(username, exerciseId, exerciseRole);
+		return ResponseEntity.ok().build();
+	}
+
+	private ArcticUserDetails currentUser() {
+		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		return (principal instanceof ArcticUserDetails) ? (ArcticUserDetails) principal : null;
+	}
+
 }
