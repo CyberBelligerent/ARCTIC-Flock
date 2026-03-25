@@ -74,6 +74,38 @@ public class ExerciseRestController {
 		return new ResponseEntity<>("Started", HttpStatus.OK);
 	}
 	
+	@DeleteMapping("/exercise/{name}/destroy/{domain}")
+	ResponseEntity<?> destroyExercise(@PathVariable(value = "name", required = true) String name, @PathVariable(value = "domain", required = true) String domain) {
+		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
+		ArcticUserDetails details = (ArcticUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+		ShardProfile sp = profileRepo.findByUsernameAndDomain(details.getUsername(), domain).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + domain));
+
+		IcebergCreator ic = icebergCreatorProvider.getObject();
+		ic.setProfile(sp);
+		ic.setDestroyMode(true);
+		try {
+			ic.attemptCreation();
+		} catch (Exception e) {
+			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
+		}
+
+		range.getNetworks().forEach(net -> {
+			ic.destroyNetwork(net);
+		});
+
+		range.getRouters().forEach(rout -> {
+			ic.destroyRouter(rout);
+		});
+
+		range.getHosts().forEach(host -> {
+			ic.destroyHost(host);
+		});
+
+		ic.start();
+
+		return new ResponseEntity<>("Started", HttpStatus.OK);
+	}
+
 	@GetMapping("/exercise")
 	ResponseEntity<List<RangeExercise>> getAllExercises() {
 		List<RangeExercise> ranges = exRepo.findAll();
