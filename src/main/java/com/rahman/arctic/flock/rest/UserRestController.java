@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -89,6 +90,10 @@ public class UserRestController {
 			roles.add(roleRepo.findByRole(UserRole.USER));
 		} else if(dto.getRole().equals("admin")) {
 			roles.add(roleRepo.findByRole(UserRole.ADMIN));
+		} else if(dto.getRole().equals("engineer")) {
+			roles.add(roleRepo.findByRole(UserRole.ENGINEER));
+		} else if(dto.getRole().equals("instructor")) {
+			roles.add(roleRepo.findByRole(UserRole.INSTRUCTOR));
 		} else {
 			return ResponseEntity.notFound().build();
 		}
@@ -114,6 +119,22 @@ public class UserRestController {
 	@PostMapping("/regularUser")
 	ResponseEntity<?> isRegularUser() {
 		return ResponseEntity.ok().build();
+	}
+
+	@PostMapping("/adminUser")
+	ResponseEntity<?> isAdminUser() {
+		ArcticUserDetails caller = currentUser();
+		if (caller == null || !permissionService.isGlobalAdmin(caller))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
+		return ResponseEntity.ok().build();
+	}
+
+	@GetMapping("/users")
+	ResponseEntity<?> getAllUsers() {
+		ArcticUserDetails caller = currentUser();
+		if (caller == null || !permissionService.isGlobalAdmin(caller))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
+		return new ResponseEntity<>(userRepo.findAll(), HttpStatus.OK);
 	}
 	
 	@PostMapping("/login")
@@ -149,6 +170,34 @@ public class UserRestController {
 		} catch (BadCredentialsException e) {
 			throw new Exception("Invalid_Credentials", e);
 		}
+	}
+
+	@PutMapping("/user/{username}/role")
+	ResponseEntity<?> updateUserRole(@PathVariable String username, @RequestParam String role) {
+		ArcticUserDetails caller = currentUser();
+		if (caller == null || !permissionService.isGlobalAdmin(caller))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
+
+		RangeUser target = userRepo.findByUsernameIgnoreCase(username).orElse(null);
+		if (target == null)
+			return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+
+		UserRole userRole;
+		try {
+			userRole = UserRole.valueOf(role.toUpperCase());
+		} catch (IllegalArgumentException e) {
+			return new ResponseEntity<>("Unknown role: " + role, HttpStatus.BAD_REQUEST);
+		}
+
+		Role newRole = roleRepo.findByRole(userRole);
+		if (newRole == null)
+			return new ResponseEntity<>("Role not configured in database: " + role, HttpStatus.INTERNAL_SERVER_ERROR);
+
+		target.getUserRoles().clear();
+		target.getUserRoles().add(newRole);
+		userRepo.save(target);
+
+		return ResponseEntity.ok().build();
 	}
 
 	@PostMapping("/user/{username}/exercise/{exerciseId}/permission")

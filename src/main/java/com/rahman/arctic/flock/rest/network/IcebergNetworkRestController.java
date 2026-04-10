@@ -72,6 +72,7 @@ public class IcebergNetworkRestController {
 		an.setNetEnd(dto.getEnd());
 		an.setNetCidr(dto.getCidr());
 		an.setGateway(dto.getGateway());
+		an.setExtraVariables(dto.getExtraVariables());
 		netRepo.save(an);
 		range.getNetworks().add(an);
 

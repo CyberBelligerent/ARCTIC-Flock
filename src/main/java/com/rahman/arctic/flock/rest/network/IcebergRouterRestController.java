@@ -46,6 +46,7 @@ public class IcebergRouterRestController {
 		ar.setName(dto.getName());
 		ar.setMapId(dto.getMapId());
 		ar.setNetworks(dto.getNetworks());
+		ar.setExtraVariables(dto.getExtraVariables());
 		routerRepo.save(ar);
 		range.getRouters().add(ar);
 

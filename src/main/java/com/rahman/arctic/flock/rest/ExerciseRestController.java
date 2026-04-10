@@ -2,11 +2,11 @@ package com.rahman.arctic.flock.rest;
 
 import java.util.List;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,110 +17,39 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.rahman.arctic.flock.exceptions.ResourceAlreadyExistsException;
+import com.rahman.arctic.flock.websocket.GraphUpdateMessage;
 import com.rahman.arctic.iceberg.objects.RangeDTO;
 import com.rahman.arctic.iceberg.objects.RangeExercise;
 import com.rahman.arctic.iceberg.objects.RangeGraphDTO;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
-import com.rahman.arctic.iceberg.services.IcebergCreator;
 import com.rahman.arctic.orca.objects.role.ExerciseRole;
+import com.rahman.arctic.orca.objects.role.UserRole;
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
 import com.rahman.arctic.orca.utils.ExercisePermissionService;
-import com.rahman.arctic.shard.configuration.persistence.ShardProfile;
-import com.rahman.arctic.shard.repos.ShardProfileRepo;
 
 @RestController
 @RequestMapping("/range-api/v1")
 public class ExerciseRestController {
 
-	private final ObjectProvider<IcebergCreator> icebergCreatorProvider;
-	private final ShardProfileRepo profileRepo;
 	private final ExercisePermissionService permissionService;
+	private final SimpMessagingTemplate messagingTemplate;
 
 	@Autowired
-    public ExerciseRestController(ObjectProvider<IcebergCreator> icebergCreatorProvider, ShardProfileRepo spr, ExercisePermissionService eps) {
-        this.icebergCreatorProvider = icebergCreatorProvider;
-        profileRepo = spr;
-        permissionService = eps;
-    }
+	public ExerciseRestController(ExercisePermissionService eps, SimpMessagingTemplate messagingTemplate) {
+		permissionService = eps;
+		this.messagingTemplate = messagingTemplate;
+	}
 
 	@Autowired
 	private ExerciseRepo exRepo;
-	
-	// TODO: Build
-	@PostMapping("/exercise/{name}/build/{domain}")
-	ResponseEntity<?> buildExercise(@PathVariable(value = "name", required = true) String name, @PathVariable(value = "domain", required = true)String domain) {
-		ArcticUserDetails details = currentUser();
-		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
-		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_CREATE))
-			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
-		ShardProfile sp = profileRepo.findByUsernameAndDomain(details.getUsername(), domain).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + domain));
-		
-		IcebergCreator ic = icebergCreatorProvider.getObject();
-		ic.setProfile(sp);
-		try {
-			ic.attemptCreation();
-		} catch (Exception e) {
-			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
-		}
-		
-		range.getNetworks().forEach(net -> {
-			ic.createNetwork(net);
-		});
-		
-		range.getRouters().forEach(rout -> {
-			ic.createRouter(rout);
-		});
-		
-		range.getHosts().forEach(host -> {
-			ic.createHost(host);
-		});
-		
-		ic.start();
-		
-		return new ResponseEntity<>("Started", HttpStatus.OK);
-	}
-	
-	@DeleteMapping("/exercise/{name}/destroy/{domain}")
-	ResponseEntity<?> destroyExercise(@PathVariable(value = "name", required = true) String name, @PathVariable(value = "domain", required = true) String domain) {
-		ArcticUserDetails details = currentUser();
-		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
-		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_DESTROY))
-			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
-		ShardProfile sp = profileRepo.findByUsernameAndDomain(details.getUsername(), domain).orElseThrow(() -> new ResourceNotFoundException("Unable to find provider configuration for: " + domain));
-
-		IcebergCreator ic = icebergCreatorProvider.getObject();
-		ic.setProfile(sp);
-		ic.setDestroyMode(true);
-		try {
-			ic.attemptCreation();
-		} catch (Exception e) {
-			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
-		}
-
-		range.getNetworks().forEach(net -> {
-			ic.destroyNetwork(net);
-		});
-
-		range.getRouters().forEach(rout -> {
-			ic.destroyRouter(rout);
-		});
-
-		range.getHosts().forEach(host -> {
-			ic.destroyHost(host);
-		});
-
-		ic.start();
-
-		return new ResponseEntity<>("Started", HttpStatus.OK);
-	}
 
 	@GetMapping("/exercise")
 	ResponseEntity<List<RangeExercise>> getAllExercises() {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-		if (permissionService.isGlobalAdmin(details)) {
+		if (permissionService.isGlobalAdmin(details)
+				|| permissionService.hasGlobalRole(details, UserRole.ENGINEER)
+				|| permissionService.hasGlobalRole(details, UserRole.INSTRUCTOR)) {
 			return new ResponseEntity<>(exRepo.findAll(), HttpStatus.OK);
 		}
 		List<RangeExercise> ranges = exRepo.findAllById(permissionService.getAccessibleExerciseIds(details.getUsername()));
@@ -132,7 +61,10 @@ public class ExerciseRestController {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_VIEW))
+		if (!permissionService.isGlobalAdmin(details)
+				&& !permissionService.hasGlobalRole(details, UserRole.ENGINEER)
+				&& !permissionService.hasGlobalRole(details, UserRole.INSTRUCTOR)
+				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_VIEW))
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 		return new ResponseEntity<>(range, HttpStatus.OK);
 	}
@@ -142,18 +74,23 @@ public class ExerciseRestController {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_ADMIN))
+		if (!permissionService.isGlobalAdmin(details)
+				&& !permissionService.hasGlobalRole(details, UserRole.ENGINEER)
+				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_ADMIN))
 			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
 		exRepo.delete(range);
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
 
 	@GetMapping("/exercise/{name}/graph")
-	ResponseEntity<?> setGraph(@PathVariable(value = "name", required = true) String name) {
+	ResponseEntity<?> getGraph(@PathVariable(value = "name", required = true) String name) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_VIEW))
+		if (!permissionService.isGlobalAdmin(details)
+				&& !permissionService.hasGlobalRole(details, UserRole.ENGINEER)
+				&& !permissionService.hasGlobalRole(details, UserRole.INSTRUCTOR)
+				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_VIEW))
 			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
 		RangeGraphDTO dto = new RangeGraphDTO();
 		dto.setLinks(range.getGraphLinks());
@@ -161,16 +98,26 @@ public class ExerciseRestController {
 		return new ResponseEntity<>(dto, HttpStatus.OK);
 	}
 
-	@PostMapping(value = "/exercise/{name}/graph", consumes="application/json")
+	@PostMapping(value = "/exercise/{name}/graph", consumes = "application/json")
 	ResponseEntity<?> setGraph(@PathVariable(value = "name", required = true) String name, @RequestBody RangeGraphDTO dto) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_ADMIN))
+		if (!permissionService.isGlobalAdmin(details)
+				&& !permissionService.hasGlobalRole(details, UserRole.ENGINEER)
+				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_ADMIN))
 			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
 		range.setGraphLinks(dto.getLinks());
 		range.setGraphNodes(dto.getNodes());
 		exRepo.save(range);
+
+		GraphUpdateMessage broadcast = new GraphUpdateMessage();
+		broadcast.setNodes(range.getGraphNodes());
+		broadcast.setLinks(range.getGraphLinks());
+		broadcast.setSenderName(details.getUsername());
+		broadcast.setExerciseName(range.getName());
+		messagingTemplate.convertAndSend("/topic/graph/" + range.getName(), broadcast);
+
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
 
@@ -178,23 +125,17 @@ public class ExerciseRestController {
 	ResponseEntity<RangeExercise> addExercise(@RequestBody RangeDTO dto) throws ResourceAlreadyExistsException {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-		if (!permissionService.isGlobalAdmin(details)) return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+		if (!permissionService.isGlobalAdmin(details) && !permissionService.hasGlobalRole(details, UserRole.ENGINEER))
+			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 		RangeExercise test = exRepo.findByName(dto.getRangeName().replaceAll(" ", "_")).orElse(null);
-		if(test != null) throw new ResourceAlreadyExistsException("Range with name: " + dto.getRangeName() + " already exists!");
-//		RangeType rt = RangeType.valueOf(dto.getRangeType().toUpperCase());
-//		if(rt == null) new ResourceNotFoundException("Range Type Does Not Exist: " + dto.getRangeType());
-		
+		if (test != null) throw new ResourceAlreadyExistsException("Range with name: " + dto.getRangeName() + " already exists!");
+
 		RangeExercise range = new RangeExercise();
 		range.setName(dto.getRangeName().replaceAll(" ", "_"));
 		range.setDescription(dto.getRangeDescription());
 		range.setProviderName(dto.getProviderName());
-//		range.setType(RangeType.valueOf(dto.getRangeType().toString().toUpperCase()));
-//		Set<String> tags = new HashSet<String>();
-//		if(dto.getTags().size() > 0) tags.addAll(dto.getTags());
-//		range.setTags(tags);
-		
-		exRepo.save(range);
 
+		exRepo.save(range);
 		return new ResponseEntity<>(range, HttpStatus.CREATED);
 	}
 
