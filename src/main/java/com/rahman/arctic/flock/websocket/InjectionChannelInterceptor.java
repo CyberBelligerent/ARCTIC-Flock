@@ -4,8 +4,6 @@ import java.util.Map;
 
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
@@ -30,6 +28,13 @@ public class InjectionChannelInterceptor implements ChannelInterceptor {
 					UsernamePasswordAuthenticationToken auth =
 							new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
 					accessor.setUser(auth);
+				} else {
+					AgentPrincipal agent = (AgentPrincipal) sessionAttributes.get(AgentHandshakeInterceptor.AGENT_PRINCIPAL_ATTR);
+					if (agent != null) {
+						UsernamePasswordAuthenticationToken auth =
+								new UsernamePasswordAuthenticationToken(agent, null, java.util.List.of());
+						accessor.setUser(auth);
+					}
 				}
 			}
 		}

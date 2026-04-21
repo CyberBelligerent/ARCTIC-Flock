@@ -59,7 +59,6 @@ public class DeploymentRestController {
 
 		System.out.println("[Deployment] roles = " + details.getAuthorities());
 
-		// Engineers cannot trigger hypervisor operations
 		if (permissionService.hasGlobalRole(details, UserRole.ENGINEER))
 			return new ResponseEntity<>("Forbidden — Engineers cannot trigger hypervisor operations", HttpStatus.FORBIDDEN);
 
@@ -70,7 +69,6 @@ public class DeploymentRestController {
 
 		System.out.println("[Deployment] found exercise: " + range.getId() + " / " + range.getName());
 
-		// Build a quick id→name map for cross-referencing host attachments
 		java.util.Map<String, String> networkIdToName = new java.util.HashMap<>();
 		System.out.println("[Deployment] networks (" + range.getNetworks().size() + "):");
 		for (com.rahman.arctic.iceberg.objects.computers.ArcticNetwork net : range.getNetworks()) {
@@ -196,8 +194,6 @@ public class DeploymentRestController {
 			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
 		}
 
-		// Register hosts and routers first so their tasks exist when destroyNetwork
-		// builds its dependency list (networks must wait for VMs to release leases).
 		range.getHosts().forEach(ic::destroyHost);
 		range.getRouters().forEach(ic::destroyRouter);
 		range.getNetworks().forEach(ic::destroyNetwork);
