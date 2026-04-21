@@ -7,6 +7,7 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import com.rahman.arctic.flock.websocket.AgentHandshakeInterceptor;
 import com.rahman.arctic.flock.websocket.InjectionChannelInterceptor;
 import com.rahman.arctic.flock.websocket.JwtHandshakeInterceptor;
 
@@ -15,11 +16,14 @@ import com.rahman.arctic.flock.websocket.JwtHandshakeInterceptor;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
+	private final AgentHandshakeInterceptor agentHandshakeInterceptor;
 	private final InjectionChannelInterceptor injectionChannelInterceptor;
 
 	public WebSocketConfig(JwtHandshakeInterceptor jwtHandshakeInterceptor,
+			AgentHandshakeInterceptor agentHandshakeInterceptor,
 			InjectionChannelInterceptor injectionChannelInterceptor) {
 		this.jwtHandshakeInterceptor = jwtHandshakeInterceptor;
+		this.agentHandshakeInterceptor = agentHandshakeInterceptor;
 		this.injectionChannelInterceptor = injectionChannelInterceptor;
 	}
 
@@ -29,6 +33,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 				.setAllowedOrigins("http://localhost:5173", "http://localhost")
 				.addInterceptors(jwtHandshakeInterceptor)
 				.withSockJS();
+
+		registry.addEndpoint("/agent-stomp", "/agent-stomp/")
+				.setAllowedOriginPatterns("*")
+				.addInterceptors(agentHandshakeInterceptor);
 	}
 
 	@Override
