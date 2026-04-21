@@ -66,7 +66,7 @@ public class IcebergHostRestController {
 	@DeleteMapping(value = "/exercise/{name}/host/{n_name}")
 	ResponseEntity<RangeExercise> removeHost(@PathVariable String name, @PathVariable String n_name) {
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		ArcticHost an = range.getHosts().stream().filter(e -> e.getName() == n_name).findAny().orElseThrow(() -> new ResourceNotFoundException("Network Not Found With Name: " + n_name));
+		ArcticHost an = range.getHosts().stream().filter(e -> n_name.equals(e.getName())).findAny().orElseThrow(() -> new ResourceNotFoundException("Host Not Found With Name: " + n_name));
 		range.getHosts().remove(an);
 		exRepo.save(range);
 		hostRepo.delete(an);

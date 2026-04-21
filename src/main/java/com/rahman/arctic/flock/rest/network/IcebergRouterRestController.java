@@ -57,7 +57,7 @@ public class IcebergRouterRestController {
 	@DeleteMapping(value = "/exercise/{name}/router/{n_name}")
 	ResponseEntity<RangeExercise> removeRouter(@PathVariable String name, @PathVariable String n_name) {
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		ArcticRouter ar = range.getRouters().stream().filter(e -> e.getName() == n_name).findAny().orElseThrow(() -> new ResourceNotFoundException("Network Not Found With Name: " + n_name));
+		ArcticRouter ar = range.getRouters().stream().filter(e -> n_name.equals(e.getName())).findAny().orElseThrow(() -> new ResourceNotFoundException("Router Not Found With Name: " + n_name));
 		range.getRouters().remove(ar);
 		exRepo.save(range);
 		routerRepo.delete(ar);
