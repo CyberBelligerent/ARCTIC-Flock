@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,28 +40,51 @@ public class IcebergHostRestController {
 	@PostMapping(value = "/exercise/{name}/host", produces = "application/json", consumes = "application/json")
 	ResponseEntity<RangeExercise> addHost(@PathVariable String name, @RequestBody ArcticHostDTO dto) throws ResourceAlreadyExistsException {
 		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
-		if (range.getNetworks().stream().anyMatch(e -> e.getNetName() == dto.getName())) {
-			throw new ResourceAlreadyExistsException("Host with name: " + dto.getName() + " already exists!");
+
+		ArcticHost existing = range.getHosts().stream()
+				.filter(h -> dto.getName() != null && dto.getName().equals(h.getName()))
+				.findAny().orElse(null);
+		if (existing != null) {
+			existing.setMapId(dto.getMapId());
+			existing.setCount(dto.getCount());
+			existing.setOsType(dto.getOsType());
+			existing.setNetworks(dto.getNetworks());
+			existing.setVolumes(dto.getVolumes());
+			existing.setExtraVariables(dto.getExtraVariables());
+			hostRepo.save(existing);
+			return ResponseEntity.ok(range);
 		}
+
 		ArcticHost ah = new ArcticHost();
 		ah.setName(dto.getName());
 		ah.setMapId(dto.getMapId());
-//		ah.setFlavorName(dto.getFlavorName());
-//		ah.setFlavorId(dto.getFlavorId());
-//		ah.setImageId(dto.getImageId());
-//		ah.setImageName(dto.getImageName());
 		ah.setOsType(dto.getOsType());
 		ah.setNetworks(dto.getNetworks());
 		ah.setVolumes(dto.getVolumes());
-//		ah.setDefaultUser(dto.getDefaultUser());
-//		ah.setDefaultPassword(dto.getDefaultPassword());
-//		ah.setWantedIPs(dto.getWantedIPs());
 		ah.setExtraVariables(dto.getExtraVariables());
 		hostRepo.save(ah);
 		range.getHosts().add(ah);
 
 		exRepo.save(range);
 		return ResponseEntity.ok(range);
+	}
+
+	@PutMapping(value = "/exercise/{name}/host/{hostName}", produces = "application/json", consumes = "application/json")
+	ResponseEntity<ArcticHost> updateHost(@PathVariable String name, @PathVariable String hostName, @RequestBody ArcticHostDTO dto) {
+		RangeExercise range = exRepo.findByName(name.replaceAll(" ", "_")).orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
+		ArcticHost host = range.getHosts().stream().filter(h -> hostName.equals(h.getName())).findAny()
+				.orElseThrow(() -> new ResourceNotFoundException("Host Not Found With Name: " + hostName));
+
+		host.setName(dto.getName());
+		host.setMapId(dto.getMapId());
+		host.setCount(dto.getCount());
+		host.setOsType(dto.getOsType());
+		host.setNetworks(dto.getNetworks());
+		host.setVolumes(dto.getVolumes());
+		host.setExtraVariables(dto.getExtraVariables());
+
+		hostRepo.save(host);
+		return ResponseEntity.ok(host);
 	}
 
 	@DeleteMapping(value = "/exercise/{name}/host/{n_name}")
