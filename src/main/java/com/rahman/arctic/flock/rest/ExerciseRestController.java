@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.rahman.arctic.flock.exceptions.ResourceAlreadyExistsException;
 import com.rahman.arctic.flock.websocket.GraphUpdateMessage;
+import com.rahman.arctic.iceberg.ansible.AnsibleStager;
 import com.rahman.arctic.iceberg.objects.RangeDTO;
 import com.rahman.arctic.iceberg.objects.RangeExercise;
 import com.rahman.arctic.iceberg.objects.RangeGraphDTO;
@@ -33,11 +34,14 @@ public class ExerciseRestController {
 
 	private final ExercisePermissionService permissionService;
 	private final SimpMessagingTemplate messagingTemplate;
+	private final AnsibleStager ansibleStager;
 
 	@Autowired
-	public ExerciseRestController(ExercisePermissionService eps, SimpMessagingTemplate messagingTemplate) {
+	public ExerciseRestController(ExercisePermissionService eps, SimpMessagingTemplate messagingTemplate,
+			AnsibleStager ansibleStager) {
 		permissionService = eps;
 		this.messagingTemplate = messagingTemplate;
+		this.ansibleStager = ansibleStager;
 	}
 
 	@Autowired
@@ -79,6 +83,7 @@ public class ExerciseRestController {
 				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_ADMIN))
 			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
 		exRepo.delete(range);
+		ansibleStager.cleanup(range.getName());
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
 
