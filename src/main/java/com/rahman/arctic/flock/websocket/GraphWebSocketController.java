@@ -2,12 +2,12 @@ package com.rahman.arctic.flock.websocket;
 
 import java.security.Principal;
 
-import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.rahman.arctic.iceberg.objects.RangeExercise;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
@@ -30,6 +30,7 @@ public class GraphWebSocketController {
 	}
 
 	@MessageMapping("/graph/{name}")
+	@Transactional
 	void handleGraphUpdate(@DestinationVariable String name,
 			@Payload GraphUpdateMessage message,
 			Principal principal) {
@@ -52,7 +53,6 @@ public class GraphWebSocketController {
 
 		range.setGraphNodes(message.getNodes());
 		range.setGraphLinks(message.getLinks());
-		exRepo.save(range);
 
 		message.setSenderName(user.getUsername());
 		message.setExerciseName(range.getName());
