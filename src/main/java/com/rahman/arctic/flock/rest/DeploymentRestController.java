@@ -108,6 +108,7 @@ public class DeploymentRestController {
 
 		IcebergCreator ic = icebergCreatorProvider.getObject();
 		ic.setProfile(sp);
+		ic.setExercise(range);
 		try {
 			ic.attemptCreation();
 		} catch (Exception e) {
@@ -118,6 +119,7 @@ public class DeploymentRestController {
 
 		range.getNetworks().forEach(ic::createNetwork);
 		range.getRouters().forEach(ic::createRouter);
+		ic.createAnsibleController(range);
 		range.getHosts().forEach(ic::createHost);
 
 		ic.start();
@@ -185,6 +187,7 @@ public class DeploymentRestController {
 
 		IcebergCreator ic = icebergCreatorProvider.getObject();
 		ic.setProfile(sp);
+		ic.setExercise(range);
 		ic.setDestroyMode(true);
 		try {
 			ic.attemptCreation();
@@ -195,6 +198,7 @@ public class DeploymentRestController {
 		}
 
 		range.getHosts().forEach(ic::destroyHost);
+		ic.destroyAnsibleController(range);
 		range.getRouters().forEach(ic::destroyRouter);
 		range.getNetworks().forEach(ic::destroyNetwork);
 
