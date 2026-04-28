@@ -23,17 +23,17 @@ import com.rahman.arctic.iceberg.ansible.HostInlineScriptDTO;
 import com.rahman.arctic.iceberg.ansible.HostRoleAssignment;
 import com.rahman.arctic.iceberg.ansible.HostRoleAssignmentDTO;
 import com.rahman.arctic.iceberg.objects.RangeExercise;
-import com.rahman.arctic.iceberg.objects.computers.ArcticHost;
+import com.rahman.arctic.iceberg.objects.computers.HostCollection;
 import com.rahman.arctic.iceberg.repos.AnsibleRoleRepo;
-import com.rahman.arctic.iceberg.repos.ArcticHostRepo;
 import com.rahman.arctic.iceberg.repos.ExerciseRepo;
+import com.rahman.arctic.iceberg.repos.HostCollectionRepo;
 import com.rahman.arctic.orca.objects.role.ExerciseRole;
 import com.rahman.arctic.orca.objects.role.UserRole;
 import com.rahman.arctic.orca.utils.ArcticUserDetails;
 import com.rahman.arctic.orca.utils.ExercisePermissionService;
 
 @RestController
-@RequestMapping("/range-api/v1/exercise/{name}/host/{hostName}/ansible")
+@RequestMapping("/range-api/v1/exercise/{name}/host-collection/{collectionName}/ansible")
 public class HostAnsibleRestController {
 
 	private final ExercisePermissionService permissionService;
@@ -47,33 +47,33 @@ public class HostAnsibleRestController {
 	private ExerciseRepo exRepo;
 
 	@Autowired
-	private ArcticHostRepo hostRepo;
+	private HostCollectionRepo collectionRepo;
 
 	@Autowired
 	private AnsibleRoleRepo roleRepo;
 
 	@GetMapping
-	ResponseEntity<HostAnsibleViewDTO> getHostAnsible(@PathVariable String name, @PathVariable String hostName) {
+	ResponseEntity<HostAnsibleViewDTO> getCollectionAnsible(@PathVariable String name, @PathVariable String collectionName) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canView(details, range.getId())) return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
 		HostAnsibleViewDTO view = new HostAnsibleViewDTO();
-		view.setRoleAssignments(host.getRoleAssignments());
-		view.setInlineScripts(host.getInlineScripts());
+		view.setRoleAssignments(hc.getRoleAssignments());
+		view.setInlineScripts(hc.getInlineScripts());
 		return new ResponseEntity<>(view, HttpStatus.OK);
 	}
 
 	@PostMapping(value = "/role", produces = "application/json", consumes = "application/json")
-	ResponseEntity<HostRoleAssignment> addRoleAssignment(@PathVariable String name, @PathVariable String hostName,
+	ResponseEntity<HostRoleAssignment> addRoleAssignment(@PathVariable String name, @PathVariable String collectionName,
 			@RequestBody HostRoleAssignmentDTO dto) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canEdit(details, range.getId())) return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
 		AnsibleRole role = roleRepo.findById(dto.getRoleId())
 				.orElseThrow(() -> new ResourceNotFoundException("Ansible role not found with id: " + dto.getRoleId()));
@@ -82,97 +82,97 @@ public class HostAnsibleRestController {
 		assignment.setRoleId(role.getId());
 		assignment.setRunOrder(dto.getRunOrder());
 		assignment.setOverrideVariables(dto.getOverrideVariables() != null ? dto.getOverrideVariables() : new HashMap<>());
-		host.getRoleAssignments().add(assignment);
-		hostRepo.save(host);
+		hc.getRoleAssignments().add(assignment);
+		collectionRepo.save(hc);
 		return new ResponseEntity<>(assignment, HttpStatus.CREATED);
 	}
 
 	@PutMapping(value = "/role/{assignmentId}", produces = "application/json", consumes = "application/json")
-	ResponseEntity<HostRoleAssignment> updateRoleAssignment(@PathVariable String name, @PathVariable String hostName,
+	ResponseEntity<HostRoleAssignment> updateRoleAssignment(@PathVariable String name, @PathVariable String collectionName,
 			@PathVariable String assignmentId, @RequestBody HostRoleAssignmentDTO dto) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canEdit(details, range.getId())) return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
-		HostRoleAssignment assignment = host.getRoleAssignments().stream()
+		HostRoleAssignment assignment = hc.getRoleAssignments().stream()
 				.filter(a -> assignmentId.equals(a.getId())).findAny()
 				.orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + assignmentId));
 		assignment.setRunOrder(dto.getRunOrder());
 		assignment.setOverrideVariables(dto.getOverrideVariables() != null ? dto.getOverrideVariables() : new HashMap<>());
-		hostRepo.save(host);
+		collectionRepo.save(hc);
 		return new ResponseEntity<>(assignment, HttpStatus.OK);
 	}
 
 	@DeleteMapping("/role/{assignmentId}")
-	ResponseEntity<?> removeRoleAssignment(@PathVariable String name, @PathVariable String hostName,
+	ResponseEntity<?> removeRoleAssignment(@PathVariable String name, @PathVariable String collectionName,
 			@PathVariable String assignmentId) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canEdit(details, range.getId())) return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
-		HostRoleAssignment assignment = host.getRoleAssignments().stream()
+		HostRoleAssignment assignment = hc.getRoleAssignments().stream()
 				.filter(a -> assignmentId.equals(a.getId())).findAny()
 				.orElseThrow(() -> new ResourceNotFoundException("Assignment not found with id: " + assignmentId));
-		host.getRoleAssignments().remove(assignment);
-		hostRepo.save(host);
+		hc.getRoleAssignments().remove(assignment);
+		collectionRepo.save(hc);
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
 
 	@PostMapping(value = "/script", produces = "application/json", consumes = "application/json")
-	ResponseEntity<HostInlineScript> addInlineScript(@PathVariable String name, @PathVariable String hostName,
+	ResponseEntity<HostInlineScript> addInlineScript(@PathVariable String name, @PathVariable String collectionName,
 			@RequestBody HostInlineScriptDTO dto) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canEdit(details, range.getId())) return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
 		HostInlineScript script = new HostInlineScript();
 		script.setName(dto.getName());
 		script.setRunOrder(dto.getRunOrder());
 		script.setContent(dto.getContent());
-		host.getInlineScripts().add(script);
-		hostRepo.save(host);
+		hc.getInlineScripts().add(script);
+		collectionRepo.save(hc);
 		return new ResponseEntity<>(script, HttpStatus.CREATED);
 	}
 
 	@PutMapping(value = "/script/{scriptId}", produces = "application/json", consumes = "application/json")
-	ResponseEntity<HostInlineScript> updateInlineScript(@PathVariable String name, @PathVariable String hostName,
+	ResponseEntity<HostInlineScript> updateInlineScript(@PathVariable String name, @PathVariable String collectionName,
 			@PathVariable String scriptId, @RequestBody HostInlineScriptDTO dto) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canEdit(details, range.getId())) return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
-		HostInlineScript script = host.getInlineScripts().stream()
+		HostInlineScript script = hc.getInlineScripts().stream()
 				.filter(s -> scriptId.equals(s.getId())).findAny()
 				.orElseThrow(() -> new ResourceNotFoundException("Script not found with id: " + scriptId));
 		script.setName(dto.getName());
 		script.setRunOrder(dto.getRunOrder());
 		script.setContent(dto.getContent());
-		hostRepo.save(host);
+		collectionRepo.save(hc);
 		return new ResponseEntity<>(script, HttpStatus.OK);
 	}
 
 	@DeleteMapping("/script/{scriptId}")
-	ResponseEntity<?> removeInlineScript(@PathVariable String name, @PathVariable String hostName,
+	ResponseEntity<?> removeInlineScript(@PathVariable String name, @PathVariable String collectionName,
 			@PathVariable String scriptId) {
 		ArcticUserDetails details = currentUser();
 		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
 		RangeExercise range = lookupExercise(name);
 		if (!canEdit(details, range.getId())) return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
-		ArcticHost host = lookupHost(range, hostName);
+		HostCollection hc = lookupCollection(range, collectionName);
 
-		HostInlineScript script = host.getInlineScripts().stream()
+		HostInlineScript script = hc.getInlineScripts().stream()
 				.filter(s -> scriptId.equals(s.getId())).findAny()
 				.orElseThrow(() -> new ResourceNotFoundException("Script not found with id: " + scriptId));
-		host.getInlineScripts().remove(script);
-		hostRepo.save(host);
+		hc.getInlineScripts().remove(script);
+		collectionRepo.save(hc);
 		return new ResponseEntity<>("", HttpStatus.OK);
 	}
 
@@ -194,9 +194,9 @@ public class HostAnsibleRestController {
 				.orElseThrow(() -> new ResourceNotFoundException("Exercise Not Found With Name: " + name));
 	}
 
-	private ArcticHost lookupHost(RangeExercise range, String hostName) {
-		return range.getHosts().stream().filter(h -> hostName.equals(h.getName())).findAny()
-				.orElseThrow(() -> new ResourceNotFoundException("Host Not Found With Name: " + hostName));
+	private HostCollection lookupCollection(RangeExercise range, String collectionName) {
+		return range.getHostCollections().stream().filter(c -> collectionName.equals(c.getName())).findAny()
+				.orElseThrow(() -> new ResourceNotFoundException("Collection Not Found With Name: " + collectionName));
 	}
 
 	private ArcticUserDetails currentUser() {
