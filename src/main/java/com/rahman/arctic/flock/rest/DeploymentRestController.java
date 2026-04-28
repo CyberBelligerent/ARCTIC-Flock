@@ -27,6 +27,7 @@ import com.rahman.arctic.orca.utils.ArcticUserDetails;
 import com.rahman.arctic.orca.utils.ExercisePermissionService;
 import com.rahman.arctic.shard.configuration.persistence.ShardProfile;
 import com.rahman.arctic.shard.repos.ShardProfileRepo;
+import com.rahman.arctic.shard.util.ARCTICLog;
 
 @RestController
 @RequestMapping("/range-api/v1")
@@ -52,40 +53,14 @@ public class DeploymentRestController {
 
 	@PostMapping(value = "/deployment", consumes = "application/json", produces = "application/json")
 	ResponseEntity<?> deployExercise(@RequestBody DeploymentRequest request) {
-		System.out.println("[Deployment] POST /deployment called");
 		ArcticUserDetails details = currentUser();
-		System.out.println("[Deployment] currentUser = " + (details != null ? details.getUsername() : "null"));
 		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
-
-		System.out.println("[Deployment] roles = " + details.getAuthorities());
 
 		if (permissionService.hasGlobalRole(details, UserRole.ENGINEER))
 			return new ResponseEntity<>("Forbidden — Engineers cannot trigger hypervisor operations", HttpStatus.FORBIDDEN);
 
-		System.out.println("[Deployment] exerciseName = " + request.getExerciseName() + ", profileName = " + request.getProfileName());
-
 		RangeExercise range = exRepo.findByName(request.getExerciseName().replaceAll(" ", "_"))
 				.orElseThrow(() -> new ResourceNotFoundException("Exercise not found: " + request.getExerciseName()));
-
-		System.out.println("[Deployment] found exercise: " + range.getId() + " / " + range.getName());
-
-		java.util.Map<String, String> networkIdToName = new java.util.HashMap<>();
-		System.out.println("[Deployment] networks (" + range.getNetworks().size() + "):");
-		for (com.rahman.arctic.iceberg.objects.computers.ArcticNetwork net : range.getNetworks()) {
-			networkIdToName.put(net.getId(), net.getNetName());
-			System.out.println("  network: id=" + net.getId() + " name=" + net.getNetName() + " cidr=" + net.getNetCidr());
-		}
-
-		System.out.println("[Deployment] hosts (" + range.getHosts().size() + "):");
-		for (com.rahman.arctic.iceberg.objects.computers.ArcticHost host : range.getHosts()) {
-			String attachedNetworks = host.getNetworks().stream()
-					.map(nid -> nid + "(" + networkIdToName.getOrDefault(nid, "?") + ")")
-					.collect(java.util.stream.Collectors.joining(", "));
-			System.out.println("  host: id=" + host.getId() + " name=" + host.getName()
-					+ " os=" + host.getOsType() + " networks=[" + attachedNetworks + "]");
-		}
-
-		System.out.println("[Deployment] isGlobalAdmin = " + permissionService.isGlobalAdmin(details));
 
 		if (!permissionService.isGlobalAdmin(details)
 				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_CREATE))
@@ -93,8 +68,6 @@ public class DeploymentRestController {
 
 		ShardProfile sp = profileRepo.findByUsernameAndProfileName(details.getUsername(), request.getProfileName())
 				.orElseThrow(() -> new ResourceNotFoundException("No profile found with name: " + request.getProfileName()));
-
-		System.out.println("[Deployment] found profile: " + sp.getProfileName() + " domain=" + sp.getDomain());
 
 		RangeDeployment deployment = new RangeDeployment();
 		deployment.setExerciseId(range.getId());
@@ -106,28 +79,64 @@ public class DeploymentRestController {
 		deployment.setStatus("Building");
 		deploymentRepo.save(deployment);
 
-		IcebergCreator ic = icebergCreatorProvider.getObject();
-		ic.setProfile(sp);
-		ic.setExercise(range);
+		ARCTICLog.setDeployment(deployment.getId());
 		try {
-			ic.attemptCreation();
-		} catch (Exception e) {
-			deployment.setStatus("Error");
+			ARCTICLog.print("Deployment", "POST /deployment by " + details.getUsername()
+					+ " exercise=" + range.getName() + " profile=" + sp.getProfileName()
+					+ " domain=" + sp.getDomain());
+
+			java.util.Map<String, String> networkIdToName = new java.util.HashMap<>();
+			ARCTICLog.print("Deployment", "networks (" + range.getNetworks().size() + ")");
+			for (com.rahman.arctic.iceberg.objects.computers.ArcticNetwork net : range.getNetworks()) {
+				networkIdToName.put(net.getId(), net.getNetName());
+				ARCTICLog.print("Deployment", "  network: id=" + net.getId()
+						+ " name=" + net.getNetName() + " cidr=" + net.getNetCidr());
+			}
+
+			ARCTICLog.print("Deployment", "host collections (" + range.getHostCollections().size() + ")");
+			for (com.rahman.arctic.iceberg.objects.computers.HostCollection hc : range.getHostCollections()) {
+				String attachedNetworks = hc.getNetworks().stream()
+						.map(nid -> nid + "(" + networkIdToName.getOrDefault(nid, "?") + ")")
+						.collect(java.util.stream.Collectors.joining(", "));
+				ARCTICLog.print("Deployment", "  collection: id=" + hc.getId() + " name=" + hc.getName()
+						+ " count=" + hc.getCount() + " os=" + hc.getOsType()
+						+ " networks=[" + attachedNetworks + "]");
+			}
+
+			IcebergCreator ic = icebergCreatorProvider.getObject();
+			ic.setProfile(sp);
+			ic.setExercise(range);
+			ic.setDeploymentId(deployment.getId());
+			try {
+				ic.attemptCreation();
+			} catch (Exception e) {
+				deployment.setStatus("Error");
+				deploymentRepo.save(deployment);
+				ARCTICLog.err("Deployment", "client creation failed: " + e.getMessage());
+				return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
+			}
+
+			range.getNetworks().forEach(ic::createNetwork);
+			range.getRouters().forEach(ic::createRouter);
+			ic.createAnsibleController(range);
+			try {
+				range.getHostCollections().forEach(ic::createHostCollection);
+			} catch (IllegalArgumentException e) {
+				deployment.setStatus("Error");
+				deploymentRepo.save(deployment);
+				ARCTICLog.err("Deployment", "host collection build rejected: " + e.getMessage());
+				return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+			}
+
+			ic.start();
+
+			deployment.setStatus("Running");
 			deploymentRepo.save(deployment);
-			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
+
+			return new ResponseEntity<>(deployment, HttpStatus.CREATED);
+		} finally {
+			ARCTICLog.clearDeployment();
 		}
-
-		range.getNetworks().forEach(ic::createNetwork);
-		range.getRouters().forEach(ic::createRouter);
-		ic.createAnsibleController(range);
-		range.getHosts().forEach(ic::createHost);
-
-		ic.start();
-
-		deployment.setStatus("Running");
-		deploymentRepo.save(deployment);
-
-		return new ResponseEntity<>(deployment, HttpStatus.CREATED);
 	}
 
 	@GetMapping(value = "/deployment", produces = "application/json")
@@ -185,29 +194,59 @@ public class DeploymentRestController {
 		deployment.setStatus("Destroying");
 		deploymentRepo.save(deployment);
 
-		IcebergCreator ic = icebergCreatorProvider.getObject();
-		ic.setProfile(sp);
-		ic.setExercise(range);
-		ic.setDestroyMode(true);
+		ARCTICLog.setDeployment(deployment.getId());
 		try {
-			ic.attemptCreation();
-		} catch (Exception e) {
-			deployment.setStatus("Error");
+			ARCTICLog.print("Deployment", "DELETE /deployment/" + id + " by " + details.getUsername()
+					+ " exercise=" + range.getName());
+
+			IcebergCreator ic = icebergCreatorProvider.getObject();
+			ic.setProfile(sp);
+			ic.setExercise(range);
+			ic.setDestroyMode(true);
+			ic.setDeploymentId(deployment.getId());
+			try {
+				ic.attemptCreation();
+			} catch (Exception e) {
+				deployment.setStatus("Error");
+				deploymentRepo.save(deployment);
+				ARCTICLog.err("Deployment", "client creation failed: " + e.getMessage());
+				return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
+			}
+
+			range.getHostCollections().forEach(ic::destroyHostCollection);
+			ic.destroyAnsibleController(range);
+			range.getRouters().forEach(ic::destroyRouter);
+			range.getNetworks().forEach(ic::destroyNetwork);
+
+			ic.start();
+
+			deployment.setStatus("Destroyed");
 			deploymentRepo.save(deployment);
-			return new ResponseEntity<>("Error creating client", HttpStatus.BAD_REQUEST);
+
+			return new ResponseEntity<>(deployment, HttpStatus.OK);
+		} finally {
+			ARCTICLog.clearDeployment();
 		}
+	}
 
-		range.getHosts().forEach(ic::destroyHost);
-		ic.destroyAnsibleController(range);
-		range.getRouters().forEach(ic::destroyRouter);
-		range.getNetworks().forEach(ic::destroyNetwork);
+	@GetMapping(value = "/deployment/{id}/monitor", produces = "application/json")
+	ResponseEntity<?> getDeploymentMonitor(@PathVariable String id) {
+		ArcticUserDetails details = currentUser();
+		if (details == null) return new ResponseEntity<>("Unauthorized", HttpStatus.UNAUTHORIZED);
 
-		ic.start();
+		RangeDeployment deployment = deploymentRepo.findById(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Deployment not found: " + id));
 
-		deployment.setStatus("Destroyed");
-		deploymentRepo.save(deployment);
+		RangeExercise range = exRepo.findById(deployment.getExerciseId())
+				.orElseThrow(() -> new ResourceNotFoundException("Exercise not found for deployment"));
 
-		return new ResponseEntity<>(deployment, HttpStatus.OK);
+		if (!permissionService.isGlobalAdmin(details)
+				&& !permissionService.hasGlobalRole(details, UserRole.ENGINEER)
+				&& !permissionService.hasGlobalRole(details, UserRole.INSTRUCTOR)
+				&& !permissionService.hasPermission(details.getUsername(), range.getId(), ExerciseRole.RANGE_VIEW))
+			return new ResponseEntity<>("Forbidden", HttpStatus.FORBIDDEN);
+
+		return new ResponseEntity<>(ARCTICLog.readHistory(id), HttpStatus.OK);
 	}
 
 	private ArcticUserDetails currentUser() {
