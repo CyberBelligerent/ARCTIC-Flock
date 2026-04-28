@@ -76,8 +76,7 @@ public class RangeAgentRestController {
 		ArcticHost host = hostRepo.findById(hostId)
 				.orElseThrow(() -> new ResourceNotFoundException("Host not found: " + hostId));
 
-		boolean hostBelongsToExercise = exercise.getHosts().stream().anyMatch(h -> h.getId().equals(host.getId()));
-		if (!hostBelongsToExercise)
+		if (host.getRangeId() == null || !host.getRangeId().equals(exercise.getId()))
 			return new ResponseEntity<>("Host does not belong to this exercise", HttpStatus.BAD_REQUEST);
 
 		String token = generateToken();
